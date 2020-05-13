@@ -1,0 +1,76 @@
+<h1 id="building-xrootd-with-cmake-and-installing-the-source-project">Building XRootD with cmake and installing the source project</h1>
+<h2 id="system-info">System info:</h2>
+<ul>
+<li>Developer tools:</li>
+</ul>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1"></a>  Version:  <span class="fl">11.4.1</span> (11E503a)</span>
+<span id="cb1-2"><a href="#cb1-2"></a>  Location: <span class="op">/</span>Applications<span class="op">/</span>Xcode.app</span>
+<span id="cb1-3"><a href="#cb1-3"></a>  Applications:</span>
+<span id="cb1-4"><a href="#cb1-4"></a>  Xcode:    <span class="fl">11.4.1</span> (<span class="dv">16137</span>)</span>
+<span id="cb1-5"><a href="#cb1-5"></a>  Instruments:  <span class="fl">11.4.1</span> (<span class="fl">64535.74</span>)</span></code></pre></div>
+<ul>
+<li>Hardware overview</li>
+</ul>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1"></a>  Model Name:   MacBook Pro</span>
+<span id="cb2-2"><a href="#cb2-2"></a>  Model Identifier: MacBookPro16,<span class="dv">1</span></span>
+<span id="cb2-3"><a href="#cb2-3"></a>  Processor Name:   <span class="dv">8</span><span class="op">-</span>Core Intel Core i9</span>
+<span id="cb2-4"><a href="#cb2-4"></a>  Processor Speed:  <span class="dv">2</span>,<span class="dv">4</span> GHz</span>
+<span id="cb2-5"><a href="#cb2-5"></a>  Number of Processors: <span class="dv">1</span></span>
+<span id="cb2-6"><a href="#cb2-6"></a>  Total Number of Cores:    <span class="dv">8</span></span>
+<span id="cb2-7"><a href="#cb2-7"></a>  L2 Cache (per Core):  <span class="dv">256</span> KB</span>
+<span id="cb2-8"><a href="#cb2-8"></a>  L3 Cache: <span class="dv">16</span> MB</span>
+<span id="cb2-9"><a href="#cb2-9"></a>  Hyper<span class="op">-</span>Threading Technology:   Enabled</span>
+<span id="cb2-10"><a href="#cb2-10"></a>  Memory:   <span class="dv">32</span> GB</span>
+<span id="cb2-11"><a href="#cb2-11"></a>  Boot ROM Version: <span class="fl">1037.80.53.0.0</span> (iBridge: <span class="fl">17.16.13050.0.0</span>,<span class="dv">0</span>)</span>
+<span id="cb2-12"><a href="#cb2-12"></a>  Serial Number (system):   <span class="op">-</span></span>
+<span id="cb2-13"><a href="#cb2-13"></a>  Hardware UUID:    <span class="op">-</span></span>
+<span id="cb2-14"><a href="#cb2-14"></a>  Activation Lock Status:   Enabled</span></code></pre></div>
+<ul>
+<li>Software</li>
+</ul>
+<div class="sourceCode" id="cb3"><pre class="sourceCode txt"><code class="sourceCode default"><span id="cb3-1"><a href="#cb3-1"></a>  System Version:   macOS 10.15.3 (19D76)</span>
+<span id="cb3-2"><a href="#cb3-2"></a>  Kernel Version:   Darwin 19.3.0</span>
+<span id="cb3-3"><a href="#cb3-3"></a>  Boot Volume:  Macintosh HD</span>
+<span id="cb3-4"><a href="#cb3-4"></a>  Boot Mode:    Normal</span>
+<span id="cb3-5"><a href="#cb3-5"></a>  Computer Name:    Robert&#39;s MacBook Pro</span>
+<span id="cb3-6"><a href="#cb3-6"></a>  Username: Robert Poenaru (basavyr)</span>
+<span id="cb3-7"><a href="#cb3-7"></a>  Secure Virtual Memory:    Enabled</span>
+<span id="cb3-8"><a href="#cb3-8"></a>  System Integrity Protection:  Enabled</span>
+<span id="cb3-9"><a href="#cb3-9"></a>  Time since boot:  4 days 1:12</span></code></pre></div>
+<h2 id="building-the-project">Building the project</h2>
+<ol type="1">
+<li>build with cmake, according to <a href="https://github.com/xrootd/xrootd/blob/b04fa906e5c1dd0278881c985b283330cc572a93/.gitlab-ci.yml#L265">this script</a>. (gitlab nightly build).
+<ol type="1">
+<li>use appropriate paths for <code>ZLIB</code>, <code>OPENSSL</code> (the include dir, the crypto library and the ssl library)</li>
+<li>build without <code>VOM</code> modules for macOS (use command: <code>-DVOMSXRD_SUBMODULE=OFF</code>)</li>
+</ol></li>
+</ol>
+<h3 id="missing-xrdversion-header-in-xrdsysplugin.ccxrdsysplugin.hh">Missing <code>XrdVersion</code> header in <code>XrdSysPlugin.cc</code>+<code>XrdSysPlugin.hh</code></h3>
+<p>In case of building errors with regards to missing the version info header:</p>
+<pre class="text"><code>/Users/basavyr/Library/Mobile Documents/com~apple~CloudDocs/Work/Pipeline/DFCTI/CERN_project/0xrootd_project/xrootd/src/XrdSys/XrdSysPlugin.cc:91:42: error:
+      member access into incomplete type &#39;XrdVersionInfo&#39;
+                                   myInfo-&gt;vStr, urInfo.vStr, mmv, majv, minv);
+                                         ^
+/Users/basavyr/Library/Mobile Documents/com~apple~CloudDocs/Work/Pipeline/DFCTI/CERN_project/0xrootd_project/xrootd/src/./XrdSys/XrdSysPlugin.hh:35:8: note:
+      forward declaration of &#39;XrdVersionInfo&#39;
+struct XrdVersionInfo;</code></pre>
+<blockquote>
+<p>The header file should be created by the <code>genversion.sh</code> script at compile time. If that isn’t the case, then just run the script from the command line separately:</p>
+</blockquote>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1"></a><span class="bu">cd</span> xrootd/</span>
+<span id="cb5-2"><a href="#cb5-2"></a><span class="ex">./genversion.sh</span></span></code></pre></div>
+<p>See the header file <a href="/build/src/XrdVersion.hh">here</a></p>
+<h2 id="installing-the-source-files">Installing the source files</h2>
+<p>Once the building process with cmake completely finished, use <code>make install</code> for the installation process.</p>
+<ol type="1">
+<li>Installing the <code>Xrd</code> client sources:</li>
+</ol>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1"></a>    <span class="bu">cd</span> src/XrdCl/</span>
+<span id="cb6-2"><a href="#cb6-2"></a>    <span class="fu">make</span> -j4</span>
+<span id="cb6-3"><a href="#cb6-3"></a>    <span class="fu">make</span> install</span></code></pre></div>
+<ol start="2" type="1">
+<li>Installing the entire project, including <strong>python bindings</strong>.<br />
+From the build directory, just:</li>
+</ol>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1"></a><span class="fu">ls</span> -a</span>
+<span id="cb7-2"><a href="#cb7-2"></a><span class="fu">make</span> install -jNCORES </span></code></pre></div>

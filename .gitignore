@@ -8,6 +8,8 @@ Makefile.in
 GNUmakefile.classic
 aclocal.m4
 autom4te.cache/
+build/*
+tarball/*
 compile
 config/GNUmake.rules.sunCC
 config/GNUmake.rules.sunCCamd
