@@ -31,7 +31,7 @@
 #ifndef __XRD_VERSION_H__
 #define __XRD_VERSION_H__
 
-#define XrdVERSION  "v20200503-abacd69a6"
+#define XrdVERSION  "v20200513-ae9ad761b"
 
 // Numeric representation of the version tag
 // The format for the released code is: xyyzz, where: x is the major version,
@@ -47,7 +47,7 @@
 #endif
 
 // The following defines the shared library version number of any plug-in.
-// Generally, all plug-ins have a uniform version number releative to a
+// Generally, all plug-ins have a uniform version number relative to a
 // specific compilation. This version is appended to the so-name and for
 // dylibs becomes part of the actual filename (MacOS format).
 //

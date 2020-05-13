@@ -98,3 +98,12 @@ From the build directory, just:
 ls -a
 make install -jNCORES 
 ```
+
+## Issues
+
+[x] - `make install` on **xrd** sources (fixed with the correct paths in the cmake install file) - see [example](./xrd-ver-backups/cmake_install.cmake) in the backup directory  
+[ ] - `make install` on **python-bindings** Issues with missing string.h header and Apple's Xcode CLANG
+
+Python bindings issue might be related to a recent [commit](https://github.com/xrootd/xrootd/commit/842effcd6428c3ed57f97c50fc62f470d5ade85b) on the base `xrootd`   repo.
+
+![](2020-05-13-20-31-40.png)
