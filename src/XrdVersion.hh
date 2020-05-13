@@ -49,7 +49,7 @@
 // The following defines the shared library version number of any plug-in.
 // Generally, all plug-ins have a uniform version number releative to a
 // specific compilation. This version is appended to the so-name and for
-// dylibs becomes part of he actual filename (MacOS format).
+// dylibs becomes part of the actual filename (MacOS format).
 //
 #ifndef XRDPLUGIN_SOVERSION
 #define XRDPLUGIN_SOVERSION "5"
@@ -71,7 +71,7 @@ struct XrdVersionInfo {int vNum; const char vOpt; const char vPfx[3];\
 
 // Macro to define the suffix to use when generating the extern version symbol.
 // This is used by SysPlugin. We cannot use it here as cpp does not expand the
-// macro when catenating tokens togther and we want to avoid yet another macro.
+// macro when catenating tokens together and we want to avoid yet another macro.
 //
 #define XrdVERSIONINFOSFX "_"
 
