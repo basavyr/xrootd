@@ -40,8 +40,6 @@
 #define  TRACELINK this
 #include "Xrd/XrdTrace.hh"
 
-#include "XrdOuc/XrdOucTrace.hh"
-
 #include "XrdSys/XrdSysAtomics.hh"
 #include "XrdSys/XrdSysLogger.hh"
 #include "XrdSys/XrdSysPthread.hh"
@@ -53,7 +51,6 @@
 namespace XrdGlobal
 {
 extern XrdSysError  Log;
-extern XrdOucTrace  XrdTrace;
 extern XrdScheduler Sched;
 extern XrdInet     *XrdNetTCP;
 };
@@ -161,11 +158,11 @@ XrdLink *XrdLinkCtl::Alloc(XrdNetAddr &peer, int opts)
    XrdNetTCP->Trim(hName);
    lp->Addr = peer;
    strlcpy(lp->Lname, hName, sizeof(lp->Lname));
-   bl = sprintf(buff, "anon:%d", peerFD);
+   bl = sprintf(buff, "anon.0:%d", peerFD);
    unp = lp->Uname + sizeof(Uname) - bl - 1; // Solaris compatability
    memcpy(unp, buff, bl);
    lp->ID = unp;
-   lp->FD = lp->PollInfo.pollFD = peerFD;
+   lp->PollInfo.FD = lp->LinkInfo.FD = peerFD;
    lp->Comment = (const char *)unp;
 
 // Set options as needed
@@ -294,18 +291,19 @@ void XrdLinkCtl::idleScan()
        {if (LinkBat[i] != XRDLINK_USED
         || !(lp = LinkTab[i])) continue;
         lnum++;
-        lp->opMutex.Lock();
+        lp->LinkInfo.opMutex.Lock();
         if (lp->isIdle) tmo++;
         lp->isIdle++;
-        if ((int(lp->isIdle)) < idleTicks) {lp->opMutex.UnLock(); continue;}
+        if ((int(lp->isIdle)) < idleTicks)
+           {lp->LinkInfo.opMutex.UnLock(); continue;}
         lp->isIdle = 0;
         if (!(lp->PollInfo.Poller) || !(lp->PollInfo.isEnabled))
            Log.Emsg("LinkScan","Link",lp->ID,"is disabled and idle.");
-           else if (lp->InUse == 1)
-                   {lp->PollInfo.Poller->Disable(lp, "idle timeout");
+           else if (lp->LinkInfo.InUse == 1)
+                   {lp->PollInfo.Poller->Disable(lp->PollInfo, "idle timeout");
                     tmod++;
                    }
-        lp->opMutex.UnLock();
+        lp->LinkInfo.opMutex.UnLock();
        }
 
 // Trace what we did

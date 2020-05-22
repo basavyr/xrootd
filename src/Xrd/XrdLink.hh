@@ -45,11 +45,20 @@ class XrdLinkMatch;
 class XrdLinkXeq;
 class XrdPollInfo;
 class XrdProtocol;
+class XrdTlsPeerCerts;
 class XrdTlsContext;
 
 class XrdLink : public XrdJob
 {
 public:
+
+//-----------------------------------------------------------------------------
+//! Activate a link by attaching it to a poller object.
+//!
+//! @return True if activation succeeded and false otherwise.
+//-----------------------------------------------------------------------------
+
+bool            Activate();
 
 //-----------------------------------------------------------------------------
 //! Obtain the address information for this link.
@@ -92,7 +101,6 @@ int             Client(char *buff, int blen);
 
 int             Close(bool defer=false);
 
-
 //-----------------------------------------------------------------------------
 //! Enable the link to field interrupts.
 //-----------------------------------------------------------------------------
@@ -105,30 +113,7 @@ void            Enable();
 //! @return         The file descriptor number.
 //-----------------------------------------------------------------------------
 
-inline int      FDnum() {int fd = FD; return (fd < 0 ? -fd : fd);}
-
-//-----------------------------------------------------------------------------
-//! Translate a file descriptor number to the corresponding link object.
-//!
-//! @param  fd      The file descriptor number.
-//!
-//! @return !0      Pointer to the link object.
-//!         =0      The file descriptor is not associated with a link.
-//-----------------------------------------------------------------------------
-
-static XrdLink *fd2link(int fd);
-
-//-----------------------------------------------------------------------------
-//! Translate a file descriptor number and an instance to a link object.
-//!
-//! @param  fd      The file descriptor number.
-//! @param  inst    The file descriptor number instance number.
-//!
-//! @return !0      Pointer to the link object.
-//!         =0      The file descriptor instance is not associated with a link.
-//-----------------------------------------------------------------------------
-
-static XrdLink *fd2link(int fd, unsigned int inst);
+int             FDnum();
 
 //-----------------------------------------------------------------------------
 //! Find the next link matching certain attributes.
@@ -136,9 +121,9 @@ static XrdLink *fd2link(int fd, unsigned int inst);
 //! @param  curr    Is an internal tracking value that allows repeated calls.
 //!                 It must be set to a value of 0 or less on the initial call
 //!                 and not touched therafter unless a null pointer is returned.
-//! @param  who     If the object use to check if teh link matches the wanted
+//! @param  who     If the object use to check if the link matches the wanted
 //!                 criterea (typically, client name and host name). If the
-//!                 ppointer is nil, the next link is always returned.
+//!                 pointer is nil, the next link is always returned.
 //!
 //! @return !0      Pointer to the link object that matches the criterea. The
 //!                 link's reference counter is increased to prevent it from
@@ -184,16 +169,21 @@ static XrdLink *Find(int &curr, XrdLinkMatch *who=0);
 static int      getName(int &curr, char *bname, int blen, XrdLinkMatch *who=0);
 
 //-----------------------------------------------------------------------------
+//! Get the x509 certificate information for this TLS enabled link.
+//!
+//! @return A pointer to the XrdTlsCerts object holding verified certificates
+//!         if such certificates exist. Otherwise a nil pointer is returned.
+//!
+//! @note Used by various protocols, so XrdTlsPeerCerts is a private header.
+//-----------------------------------------------------------------------------
+
+XrdTlsPeerCerts *getPeerCerts();
+
+//-----------------------------------------------------------------------------
 //! Obtain current protocol object pointer.
 //-----------------------------------------------------------------------------
 
 XrdProtocol    *getProtocol();
-
-//-----------------------------------------------------------------------------
-//! Obtain polling information object (used by poller only)
-//-----------------------------------------------------------------------------
-
-XrdPollInfo    &getPollInfo();
 
 //-----------------------------------------------------------------------------
 //! Lock or unlock the mutex used for control operations.
@@ -224,7 +214,7 @@ char           *ID;      // This is referenced a lot (should have been const).
 //!
 //! @return The link's instance number.
 //-----------------------------------------------------------------------------
-inline
+
 unsigned int    Inst() const {return Instance;}
 
 //-----------------------------------------------------------------------------
@@ -233,8 +223,8 @@ unsigned int    Inst() const {return Instance;}
 //! @return True    the link has an outstanding error.
 //!                 the link has no outstanding error.
 //-----------------------------------------------------------------------------
-inline
-bool            isFlawed() const {return Etext != 0;}
+
+bool            isFlawed() const;
 
 //-----------------------------------------------------------------------------
 //! Indicate whether or not this link is of a particular instance.
@@ -245,9 +235,8 @@ bool            isFlawed() const {return Etext != 0;}
 //! @return true    the link matches the instance number.
 //!         false   the link differs the instance number.
 //-----------------------------------------------------------------------------
-inline
-bool            isInstance(unsigned int inst) const
-                          {return FD >= 0 && Instance == inst;}
+
+bool            isInstance(unsigned int inst) const;
 
 //-----------------------------------------------------------------------------
 //! Obtain the domain trimmed name of the end-point. The returned value should
@@ -339,6 +328,7 @@ int             RecvAll(char *buff, int blen, int timeout=-1);
 //------------------------------------------------------------------------------
 
 bool        Register(const char *hName);
+
 //-----------------------------------------------------------------------------
 //! Send data on a link. This calls may block unless the socket was marked
 //! nonblocking. If a block would occur, the data is copied for later sending.
@@ -522,13 +512,13 @@ int             Terminate(const char *owner, int fdnum, unsigned int inst);
 //! Return the time the link was made active (i.e. time of connection).
 //-----------------------------------------------------------------------------
 
-time_t          timeCon() const {return conTime;}
+time_t          timeCon() const;
 
 //-----------------------------------------------------------------------------
 //! Return link's reference count.
 //-----------------------------------------------------------------------------
 
-inline int      UseCnt() const {return InUse;}
+int             UseCnt() const;
 
 //-----------------------------------------------------------------------------
 //! Mark this link as an in-memory communications bridge (internal use only).
@@ -543,7 +533,7 @@ void            armBridge();
 //! @return false   this link is a plain old link.
 //-----------------------------------------------------------------------------
 
-inline bool     hasBridge() const {return isBridged;}
+bool            hasBridge() const {return isBridged;}
 
 //-----------------------------------------------------------------------------
 //! Determine if this link is using TLS.
@@ -555,7 +545,7 @@ inline bool     hasBridge() const {return isBridged;}
 //! @return false   this link not using TLS.
 //-----------------------------------------------------------------------------
 
-inline bool     hasTLS() const {return isTLS;}
+bool            hasTLS() const {return isTLS;}
 
 //-----------------------------------------------------------------------------
 //! Return TLS protocol version being used.
@@ -581,22 +571,12 @@ void            DoIt();       // This is an override of XrdJob::DoIt.
 void            ResetLink();
 int             Wait4Data(int timeout);
 
-void           *rsvd2[3];     // Reserved for future use
-XrdSysCondVar  *KillcvP;      // Protected by opMutex!
-
-XrdSysSemaphore IOSemaphore;  // Serialization semaphore
-time_t          conTime;      // Unix time connected
-char           *Etext;        // -> error text, if nil then no error.
-char           *HostName;     // -> peer's host nameh
+void           *rsvd1[3];     // Reserved for future use
 XrdLinkXeq     &linkXQ;       // The implementation
-int             FD;           // File descriptor (may be negative)
+char           *HostName;     // Pointer to the hostname
 unsigned int    Instance;     // Instance number of this object
-XrdSysRecMutex  opMutex;      // Serialization mutex
-int             InUse;        // Number of threads using this object
-int             doPost;       // Number of threads waiting for serialization
 bool            isBridged;    // If true, this link is an in-memory bridge
 bool            isTLS;        // If true, this link uses TLS for all I/O
-char            KillCnt;      // Number of times a kill has been attempted
-char            rsvd1[5];
+char            rsvd2[2];
 };
 #endif

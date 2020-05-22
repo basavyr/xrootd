@@ -53,6 +53,7 @@ class XrdNetAddrInfo;
 class XrdSecAttr;
 class XrdSecEntityAttrCB;
 class XrdSecEntityXtra;
+class XrdSysError;
   
 /******************************************************************************/
 /*                          X r d S e c E n t i t y                           */
@@ -67,12 +68,14 @@ class XrdSecEntityXtra;
 class XrdSecEntity
 {
 public:
-         char    prot[XrdSecPROTOIDSIZE]; //!< Security protocol used (e.g. krb5)
+         char    prot[XrdSecPROTOIDSIZE]; //!< Auth protocol  used (e.g. krb5)
+         char    prox[XrdSecPROTOIDSIZE]; //!< Auth extractor used (e.g. xrdvoms)
          char   *name;                    //!< Entity's name
          char   *host;                    //!< Entity's host name dnr dependent
          char   *vorg;                    //!< Entity's virtual organization(s)
          char   *role;                    //!< Entity's role(s)
          char   *grps;                    //!< Entity's group name(s)
+         char   *caps;                    //!< Entity's capabilities
          char   *endorsements;            //!< Protocol specific endorsements
          char   *moninfo;                 //!< Information for monitoring
          char   *creds;                   //!< Raw entity credentials or cert
@@ -113,6 +116,14 @@ const    char   *pident;                  //!< Trace identifier (originator)
 
          bool    Add(const std::string &key,
                      const std::string &val, bool replace=false);
+
+//------------------------------------------------------------------------------
+//! Dislay the contents of this object for debugging purposes.
+//!
+//! @param  mDest   - Reference to the message object to use.
+//------------------------------------------------------------------------------
+
+         void    Display(XrdSysError &mDest);
 
 //------------------------------------------------------------------------------
 //! Get an attribute object associated with this entity.

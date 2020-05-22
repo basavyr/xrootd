@@ -576,6 +576,8 @@ namespace XrdCl
         //----------------------------------------------------------------------
         // Forward any "xrd.*" params from the original client request also to
         // the new redirection url
+        // Also, we need to preserve any "xrdcl.*' as they are important for
+        // our internal workflows.
         //----------------------------------------------------------------------
         std::ostringstream ossXrd;
         const URL::ParamsMap &urlParams = pUrl.GetParams();
@@ -583,7 +585,8 @@ namespace XrdCl
         for(URL::ParamsMap::const_iterator it = urlParams.begin();
             it != urlParams.end(); ++it )
         {
-          if( it->first.compare( 0, 4, "xrd." ) )
+          if( it->first.compare( 0, 4, "xrd." ) &&
+              it->first.compare( 0, 6, "xrdcl." ) )
             continue;
 
           ossXrd << it->first << '=' << it->second << '&';
@@ -796,8 +799,8 @@ namespace XrdCl
   //----------------------------------------------------------------------------
   // Handle an event other that a message arrival - may be timeout
   //----------------------------------------------------------------------------
-  uint8_t XRootDMsgHandler::OnStreamEvent( StreamEvent event,
-                                           Status      status )
+  uint8_t XRootDMsgHandler::OnStreamEvent( StreamEvent   event,
+                                           XRootDStatus  status )
   {
     Log *log = DefaultEnv::GetLog();
     log->Dump( XRootDMsg, "[%s] Stream event reported for msg %s",
@@ -1127,7 +1130,7 @@ namespace XrdCl
   // and there has been a status update on this action
   //----------------------------------------------------------------------------
   void XRootDMsgHandler::OnStatusReady( const Message *message,
-                                        Status         status )
+                                        XRootDStatus   status )
   {
     Log *log = DefaultEnv::GetLog();
 
@@ -2125,7 +2128,7 @@ namespace XrdCl
   //----------------------------------------------------------------------------
   // Recover error
   //----------------------------------------------------------------------------
-  void XRootDMsgHandler::HandleError( Status status, Message *msg )
+  void XRootDMsgHandler::HandleError( XRootDStatus status, Message *msg )
   {
     //--------------------------------------------------------------------------
     // If there was no error then do nothing

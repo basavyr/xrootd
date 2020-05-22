@@ -33,6 +33,7 @@
 #include "XrdSys/XrdSysE2T.hh"
 #include "XrdTls/XrdTlsContext.hh"
 #include "XrdTls/XrdTlsNotary.hh"
+#include "XrdTls/XrdTlsPeerCerts.hh"
 #include "XrdTls/XrdTlsSocket.hh"
 #include "XrdTls/XrdTlsTrace.hh"
 
@@ -196,10 +197,12 @@ do{if ((rc = SSL_accept( pImpl->ssl )) > 0)
 //
    if (pImpl->cAttr & acc2Block)
 //    BIO_set_nbio(SSL_get_rbio(pImpl->ssl), 0); *Does not work after accept*
-      {int flags = fcntl(pImpl->sFD, F_GETFL, 0);
+      {int eNO = errno;
+       int flags = fcntl(pImpl->sFD, F_GETFL, 0);
        flags &= ~O_NONBLOCK;
        fcntl(pImpl->sFD, F_SETFL, flags);
        SSL_set_mode(pImpl->ssl, SSL_MODE_AUTO_RETRY);
+       errno = eNO;
       }
        return XrdTls::TLS_AOK;
       }
@@ -242,8 +245,7 @@ void XrdTlsSocket::AcceptEMsg(std::string *eWhy, const char *reason)
 /*                               C o n n e c t                                */
 /******************************************************************************/
   
-XrdTls::RC XrdTlsSocket::Connect(const char *thehost, XrdNetAddrInfo *netInfo,
-                                 std::string *eWhy)
+XrdTls::RC XrdTlsSocket::Connect(const char *thehost, std::string *eWhy)
 {
    EPNAME("Connect");
    int ssler, rc;
@@ -273,16 +275,13 @@ do{int rc = SSL_connect( pImpl->ssl );
    } while((wOK = Wait4OK(ssler == SSL_ERROR_WANT_READ)));
 
 // Check if everything went well. Note that we need to save the errno as
-// we may be calling external methods that may generate other errors.
+// we may be calling external methods that may generate other errors. We
 //
    if (!aOK || !wOK)
       {rc = errno;
        DBG_SOK("Handshake failed; "<<(!aOK ? Err2Text(ssler) : XrdSysE2T(rc)));
        if (eWhy)
-          {const char *hName;
-           if (thehost) hName = thehost;
-              else if (netInfo) hName = netInfo->Name("host");
-                      else hName = "host";
+          {const char *hName = (thehost ? thehost : "host");
            *eWhy = "Unable to connect to ";
            *eWhy += hName;
            *eWhy += "; ";
@@ -299,11 +298,12 @@ do{int rc = SSL_connect( pImpl->ssl );
    pImpl->hsDone = bool( SSL_is_init_finished( pImpl->ssl ) );
 
 // Validate the host name if so desired. Note that cert verification is
-// checked by the notary since only hostname validation requires it.
-
+// checked by the notary since hostname validation requires it. We currently
+// do not support dnsOK but doing so just means we need to check the option
+// and if on, also pass a XrdNetAddrInfo object generated from the hostname.
+//
    if (thehost)
-      {const char *eTxt = XrdTlsNotary::Validate(pImpl->ssl, thehost,
-                                        (pImpl->cOpts & DNSok ? netInfo : 0));
+      {const char *eTxt = XrdTlsNotary::Validate(pImpl->ssl, thehost, 0);
        if (eTxt)
           {DBG_SOK(thehost << " verification failed; " <<eTxt);
            if (eWhy)
@@ -338,13 +338,19 @@ int XrdTlsSocket::Diagnose(const char *what, int sslrc, int tcode)
 
 // We need to dispose of the error queue otherwise the next operation will
 // fail. We do this by either printing them or flushing them down the drain.
+// We avoid the tracing hangups indicated by SSL_ERROR_SYSCALL w/ errno == 0.
 //
    if (TRACING(tcode)
    || (eCode != SSL_ERROR_WANT_READ && eCode != SSL_ERROR_WANT_WRITE))
-      {char eBuff[256];
-       snprintf(eBuff, sizeof(eBuff), "TLS error rc=%d ec=%d (%s).",
-                sslrc, eCode, XrdTls::ssl2Text(eCode));
-       XrdTls::Emsg(pImpl->traceID, eBuff, true);
+      {int eNO = errno;
+       if (!eNO && eCode == SSL_ERROR_SYSCALL) ERR_clear_error();
+           else {char eBuff[256];
+                 snprintf(eBuff, sizeof(eBuff),
+                          "TLS error rc=%d ec=%d (%s) errno=%d.",
+                          sslrc, eCode, XrdTls::ssl2Text(eCode), eNO);
+                 XrdTls::Emsg(pImpl->traceID, eBuff, true);
+                 errno = eNO;
+                }
       } else ERR_clear_error();
 
 // Make sure we can shutdown
@@ -376,6 +382,26 @@ std::string XrdTlsSocket::Err2Text(int sslerr)
    return std::string(eP);
 }
 
+/******************************************************************************/
+/*                              g e t C e r t s                               */
+/******************************************************************************/
+
+XrdTlsPeerCerts *XrdTlsSocket::getCerts(bool ver)
+{
+// If verified certs need to be returned, make sure the certs are verified
+//
+   if (ver && SSL_get_verify_result(pImpl->ssl) != X509_V_OK) return 0;
+
+// Get the certs and return
+//
+   X509 *pcert = SSL_get_peer_certificate(pImpl->ssl);
+   if (pcert == 0) return 0;
+   XrdTlsPeerCerts *pc = new XrdTlsPeerCerts;
+   pc->cert  = pcert;
+   pc->chain = SSL_get_peer_cert_chain(pImpl->ssl);
+   return pc;
+}
+  
 /******************************************************************************/
 /*                                  I n i t                                   */
 /******************************************************************************/

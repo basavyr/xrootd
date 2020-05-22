@@ -60,32 +60,32 @@ XrdSysTrace      SysTrace("TLS",0);
 /*                       L o c a l   F u n c t i o n s                        */
 /******************************************************************************/
 
-namespace
-{
-int RC2SSL_Error(XrdTls::RC rc)
-{
-   switch(rc)
-         {case XrdTls::TLS_AOK:             return SSL_ERROR_NONE;
-               break;
-          case XrdTls::TLS_CON_Closed:      return SSL_ERROR_ZERO_RETURN;
-               break;
-          case XrdTls::TLS_SSL_Error:       return SSL_ERROR_SSL;
-               break;
-          case XrdTls::TLS_SYS_Error:       return SSL_ERROR_SYSCALL;
-               break;
-          case XrdTls::TLS_WantRead:        return SSL_ERROR_WANT_READ;
-               break;
-          case XrdTls::TLS_WantWrite:       return SSL_ERROR_WANT_WRITE;
-               break;
-          case XrdTls::TLS_WantAccept:      return SSL_ERROR_WANT_ACCEPT;
-               break;
-          case XrdTls::TLS_WantConnect:     return SSL_ERROR_WANT_CONNECT;
-               break;
-          default: break;
-         }
-   return SSL_ERROR_SSL;
-}
-}
+//namespace
+//{
+//int RC2SSL_Error(XrdTls::RC rc)
+//{
+//   switch(rc)
+//         {case XrdTls::TLS_AOK:             return SSL_ERROR_NONE;
+//               break;
+//          case XrdTls::TLS_CON_Closed:      return SSL_ERROR_ZERO_RETURN;
+//               break;
+//          case XrdTls::TLS_SSL_Error:       return SSL_ERROR_SSL;
+//               break;
+//          case XrdTls::TLS_SYS_Error:       return SSL_ERROR_SYSCALL;
+//               break;
+//          case XrdTls::TLS_WantRead:        return SSL_ERROR_WANT_READ;
+//               break;
+//          case XrdTls::TLS_WantWrite:       return SSL_ERROR_WANT_WRITE;
+//               break;
+//          case XrdTls::TLS_WantAccept:      return SSL_ERROR_WANT_ACCEPT;
+//               break;
+//          case XrdTls::TLS_WantConnect:     return SSL_ERROR_WANT_CONNECT;
+//               break;
+//          default: break;
+//         }
+//   return SSL_ERROR_SSL;
+//}
+//}
   
 /******************************************************************************/
 /*                                  E m s g                                   */
@@ -256,4 +256,12 @@ const char *XrdTls::ssl2Text(int sslrc, const char *dflt)
                break;
           default:                         return dflt;
          }
+}
+
+/******************************************************************************/
+/*                      C l e a r E r r o r Q u e u e                         */
+/******************************************************************************/
+void XrdTls::ClearErrorQueue()
+{
+  ERR_clear_error();
 }

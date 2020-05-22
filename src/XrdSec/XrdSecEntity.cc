@@ -27,12 +27,14 @@
 /* specific prior written permission of the institution or contributor.       */
 /******************************************************************************/
 
+#include <iostream>
 #include <map>
 #include <string.h>
 #include <vector>
 
 #include "XrdSec/XrdSecAttr.hh"
 #include "XrdSec/XrdSecEntity.hh"
+#include "XrdSys/XrdSysError.hh"
 #include "XrdSys/XrdSysPthread.hh"
 
 /******************************************************************************/
@@ -97,6 +99,58 @@ bool XrdSecEntity::Add(const std::string &key,
    return true;
 }
 
+/******************************************************************************/
+/*                               D i s p l a y                                */
+/******************************************************************************/
+
+void XrdSecEntity::Display(XrdSysError &mDest)
+{
+   class AttrCB : public XrdSecEntityAttrCB
+        {public:
+         XrdSecEntityAttrCB::Action Attr(const char *key, const char *val)
+                           {mDest.Say(Tid, "Attr  ",key," = '", val, "'");
+                            return XrdSecEntityAttrCB::Next;
+                           }
+         AttrCB(XrdSysError &erp, const char *tid) : mDest(erp), Tid(tid) {}
+        ~AttrCB() {}
+
+         XrdSysError &mDest;
+         const char  *Tid;
+        } displayAttr(mDest, tident);
+
+   char theprot[XrdSecPROTOIDSIZE+1];
+
+// Avoid vulgarities of old gcc compilers that didn't implemented full C++11
+//
+   typedef long long          int LLint;
+   typedef long long unsigned int ULint;
+
+// Make sure the protocol is poperly set
+//
+   memcpy(theprot, prot, XrdSecPROTOIDSIZE);
+   theprot[XrdSecPROTOIDSIZE] = 0;
+
+// Display this object
+//
+   mDest.Say(tident, " Protocol '", theprot, "'");
+   mDest.Say(tident, " Name '", (name ? name : ""), "'");
+   mDest.Say(tident, " Host '", (host ? host : ""), "'");
+   mDest.Say(tident, " Vorg '", (vorg ? vorg : ""), "'");
+   mDest.Say(tident, " Role '", (role ? role : ""), "'");
+   mDest.Say(tident, " Grps '", (grps ? grps : ""), "'");
+   mDest.Say(tident, " Caps '", (caps ? caps : ""), "'");
+   mDest.Say(tident, " Pidn '", (pident ? pident : ""), "'");
+
+   mDest.Say(tident, " Crlen ", std::to_string((LLint)credslen).c_str());
+   mDest.Say(tident, " ueid  ", std::to_string((ULint)ueid).c_str());
+   mDest.Say(tident, " uid   ", std::to_string((ULint)uid).c_str());
+   mDest.Say(tident, " gid   ", std::to_string((ULint)gid).c_str());
+
+// Display it's attributes, if any
+//
+   List(displayAttr);
+}
+  
 /******************************************************************************/
 /*                                   G e t                                    */
 /******************************************************************************/
@@ -185,6 +239,7 @@ void XrdSecEntity::List(XrdSecEntityAttrCB &attrCB) const
 void XrdSecEntity::Reset(bool isnew, const char *spV)
 {
    memset( prot, 0, sizeof(prot) );
+   memset( prox, 0, sizeof(prox) );
    if (spV) strncpy(prot, spV, sizeof(prot)-1);
 
    name = 0;
@@ -192,6 +247,7 @@ void XrdSecEntity::Reset(bool isnew, const char *spV)
    vorg = 0;
    role = 0;
    grps = 0;
+   caps = 0;
    endorsements = 0;
    moninfo = 0;
    creds = 0;

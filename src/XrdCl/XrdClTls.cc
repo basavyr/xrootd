@@ -26,6 +26,9 @@
 #include "XrdTls/XrdTls.hh"
 #include "XrdTls/XrdTlsContext.hh"
 
+#include <string>
+#include <stdexcept>
+
 namespace
 {
   //------------------------------------------------------------------------
@@ -60,6 +63,7 @@ namespace
       inline SetTlsMsgCB()
       {
         XrdTls::SetMsgCB( MsgCallBack );
+        XrdTls::SetDebug( XrdTls::dbgALL, MsgCallBack );
       }
   };
 
@@ -89,12 +93,14 @@ namespace XrdCl
     //----------------------------------------------------------------------
     // we only need one instance of TLS
     //----------------------------------------------------------------------
-    static XrdTlsContext tlsContext( 0, 0, GetCaDir(), 0, 0 );
+    std::string emsg;
+    static XrdTlsContext tlsContext( 0, 0, GetCaDir(), 0, 0, &emsg );
+
     //----------------------------------------------------------------------
     // If the context is not valid throw an exception! We throw generic
     // exception as this will be translated to TlsError anyway.
     //----------------------------------------------------------------------
-    if( !tlsContext.isOK() ) throw std::exception();
+    if( !tlsContext.isOK() ) throw std::runtime_error( emsg );
 
     pTls.reset(
         new XrdTlsSocket( tlsContext, pSocket->GetFD(), XrdTlsSocket::TLS_RNB_WNB,
@@ -104,11 +110,13 @@ namespace XrdCl
   //------------------------------------------------------------------------
   // Establish a TLS/SSL session and perform host verification.
   //------------------------------------------------------------------------
-  Status Tls::Connect( const std::string &thehost, XrdNetAddrInfo *netInfo )
+  XRootDStatus Tls::Connect( const std::string &thehost, XrdNetAddrInfo *netInfo )
   {
     std::string errmsg;
-    XrdTls::RC error = pTls->Connect( thehost.c_str(), netInfo, &errmsg );
-    Status status = ToStatus( error );
+    XrdTls::RC error = pTls->Connect( thehost.c_str(), &errmsg );
+    XRootDStatus status = ToStatus( error );
+    if( !status.IsOK() )
+      status.SetErrorMessage( errmsg );
 
     //--------------------------------------------------------------------------
     // There's no follow up if the read simply failed
@@ -128,7 +136,7 @@ namespace XrdCl
       //------------------------------------------------------------------------
       if( pSocket->IsCorked() )
       {
-        Status st = pSocket->Uncork();
+        XRootDStatus st = pSocket->Uncork();
         if( !st.IsOK() ) return st;
       }
 
@@ -137,7 +145,7 @@ namespace XrdCl
       //----------------------------------------------------------------------
       if( error == XrdTls::TLS_WantWrite )
       {
-        Status st = pSocketHandler->EnableUplink();
+        XRootDStatus st = pSocketHandler->EnableUplink();
         if( !st.IsOK() ) return st;
       }
       //----------------------------------------------------------------------
@@ -145,7 +153,7 @@ namespace XrdCl
       //----------------------------------------------------------------------
       else if( error == XrdTls::TLS_WantRead )
       {
-        Status st = pSocketHandler->DisableUplink();
+        XRootDStatus st = pSocketHandler->DisableUplink();
         if( !st.IsOK() ) return st;
       }
     }
@@ -153,14 +161,14 @@ namespace XrdCl
     return status;
   }
 
-  Status Tls::Read( char *buffer, size_t size, int &bytesRead )
+  XRootDStatus Tls::Read( char *buffer, size_t size, int &bytesRead )
   {
     //--------------------------------------------------------------------------
     // If necessary, TLS_read() will negotiate a TLS/SSL session, so we don't
     // have to explicitly call connect or do_handshake.
     //--------------------------------------------------------------------------
     XrdTls::RC error = pTls->Read( buffer, size, bytesRead );
-    Status status = ToStatus( error );
+    XRootDStatus status = ToStatus( error );
 
     //--------------------------------------------------------------------------
     // There's no follow up if the read simply failed
@@ -174,7 +182,7 @@ namespace XrdCl
       //------------------------------------------------------------------------
       if( pSocket->IsCorked() )
       {
-        Status st = pSocket->Uncork();
+        XRootDStatus st = pSocket->Uncork();
         if( !st.IsOK() ) return st;
       }
 
@@ -184,7 +192,7 @@ namespace XrdCl
       if( error == XrdTls::TLS_WantWrite )
       {
         pTlsHSRevert = ReadOnWrite;
-        Status st = pSocketHandler->EnableUplink();
+        XRootDStatus st = pSocketHandler->EnableUplink();
         if( !st.IsOK() ) status = st;
         //--------------------------------------------------------------------
         // Return early so the revert state wont get cleared
@@ -198,7 +206,7 @@ namespace XrdCl
     //------------------------------------------------------------------------
     if( pTlsHSRevert == ReadOnWrite )
     {
-      Status st = pSocketHandler->DisableUplink();
+      XRootDStatus st = pSocketHandler->DisableUplink();
       if( !st.IsOK() ) status = st;
     }
     pTlsHSRevert = None;
@@ -207,19 +215,19 @@ namespace XrdCl
     // If we didn't manage to read any data wait for another read event
     //------------------------------------------------------------------------
     if( bytesRead == 0 )
-      return Status( stOK, suRetry );
+      return XRootDStatus( stOK, suRetry );
 
     return status;
   }
 
-  Status Tls::Send( const char *buffer, size_t size, int &bytesWritten )
+  XRootDStatus Tls::Send( const char *buffer, size_t size, int &bytesWritten )
   {
     //--------------------------------------------------------------------------
     // If necessary, TLS_write() will negotiate a TLS/SSL session, so we don't
     // have to explicitly call connect or do_handshake.
     //--------------------------------------------------------------------------
     XrdTls::RC error = pTls->Write( buffer, size, bytesWritten );
-    Status status = ToStatus( error );
+    XRootDStatus status = ToStatus( error );
 
     //--------------------------------------------------------------------------
     // There's no follow up if the write simply failed
@@ -236,7 +244,7 @@ namespace XrdCl
       //------------------------------------------------------------------------
       if( pSocket->IsCorked() )
       {
-        Status st = pSocket->Uncork();
+        XRootDStatus st = pSocket->Uncork();
         if( !st.IsOK() ) return st;
       }
 
@@ -246,7 +254,7 @@ namespace XrdCl
       if( error == XrdTls::TLS_WantRead )
       {
         pTlsHSRevert = WriteOnRead;
-        Status st = pSocketHandler->DisableUplink();
+        XRootDStatus st = pSocketHandler->DisableUplink();
         if( !st.IsOK() ) status = st;
         //----------------------------------------------------------------------
         // Return early so the revert state wont get cleared
@@ -260,7 +268,7 @@ namespace XrdCl
     //--------------------------------------------------------------------------
     if( pTlsHSRevert == WriteOnRead )
     {
-      Status st = pSocketHandler->EnableUplink();
+      XRootDStatus st = pSocketHandler->EnableUplink();
       if( !st.IsOK() ) status = st;
     }
     pTlsHSRevert = None;
@@ -272,30 +280,32 @@ namespace XrdCl
     // it has been experienced)
     //------------------------------------------------------------------------
     if( bytesWritten == 0 )
-      return Status( stOK, suRetry );
+      return XRootDStatus( stOK, suRetry );
 
     return status;
   }
 
-  Status Tls::ToStatus( int error )
+  XRootDStatus Tls::ToStatus( XrdTls::RC rc )
   {
-    switch( error )
+    std::string msg = XrdTls::RC2Text( rc, true );
+
+    switch( rc )
     {
-      case XrdTls::TLS_AOK: return Status();
+      case XrdTls::TLS_AOK: return XRootDStatus();
 
       case XrdTls::TLS_WantConnect:
       case XrdTls::TLS_WantWrite:
-      case XrdTls::TLS_WantRead:  return Status( stOK, suRetry, error );
+      case XrdTls::TLS_WantRead:  return XRootDStatus( stOK, suRetry, 0, msg );
 
       case XrdTls::TLS_SSL_Error:
       case XrdTls::TLS_UNK_Error:
-      case XrdTls::TLS_SYS_Error: return Status( stError, errTlsError, errno );
+      case XrdTls::TLS_SYS_Error: return XRootDStatus( stError, errTlsError, errno, msg );
 
       case XrdTls::TLS_VER_Error:
-      case XrdTls::TLS_HNV_Error: return Status( stFatal, errTlsError, errno );
+      case XrdTls::TLS_HNV_Error: return XRootDStatus( stFatal, errTlsError, errno, msg );
 
       default:
-        return Status( stError, errTlsError, error );
+        return XRootDStatus( stError, errTlsError, rc, msg );
     }
   }
 
@@ -324,5 +334,10 @@ namespace XrdCl
     }
 
     return event;
+  }
+
+  void Tls::ClearErrorQueue()
+  {
+    XrdTls::ClearErrorQueue();
   }
 }

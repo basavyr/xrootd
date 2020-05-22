@@ -31,20 +31,14 @@
 #include "XrdSys/XrdSysError.hh"
 
 #include "Xrd/XrdLink.hh"
-#include "Xrd/XrdPoll.hh"
 #include "Xrd/XrdProtLoad.hh"
+#include "Xrd/XrdTrace.hh"
 
 #include "XrdVersion.hh"
 
-#define XRD_TRACE XrdTrace->
-#include "Xrd/XrdTrace.hh"
-  
 /******************************************************************************/
 /*                        G l o b a l   O b j e c t s                         */
 /******************************************************************************/
-
-XrdSysError *XrdProtLoad::XrdLog   = 0;
-XrdOucTrace *XrdProtLoad::XrdTrace = 0;
 
 XrdProtocol *XrdProtLoad::Protocol[ProtoMax] = {0};
 char        *XrdProtLoad::ProtName[ProtoMax] = {0};
@@ -60,6 +54,12 @@ XrdOucPinLoader *libhndl[XrdProtLoad::ProtoMax];
 const char      *TraceID = "ProtLoad";
 int              libcnt = 0;
 }
+
+namespace XrdGlobal
+{
+extern XrdSysError Log;
+}
+using namespace XrdGlobal;
 
 /******************************************************************************/
 /*            C o n s t r u c t o r   a n d   D e s t r u c t o r             */
@@ -112,14 +112,14 @@ int XrdProtLoad::Load(const char *lname, const char *pname,
 // First check to see that we haven't exceeded our protocol count
 //
    if (ProtoCnt >= ProtoMax)
-      {XrdLog->Emsg("Protocol", "Too many protocols have been defined.");
+      {Log.Emsg("Protocol", "Too many protocols have been defined.");
        return 0;
       }
 
 // Obtain an instance of this protocol
 //
    xp = getProtocol(lname, pname, parms, pi);
-   if (!xp) {XrdLog->Emsg("Protocol","Protocol", pname, "could not be loaded");
+   if (!xp) {Log.Emsg("Protocol","Protocol", pname, "could not be loaded");
              return 0;
             }
 
@@ -152,7 +152,7 @@ int XrdProtLoad::Port(const char *lname, const char *pname,
 
 // Make sure we can use the port
 //
-   if (port < 0) XrdLog->Emsg("Protocol","Protocol", pname,
+   if (port < 0) Log.Emsg("Protocol","Protocol", pname,
                              "port number could not be determined");
    return port;
 }
@@ -195,9 +195,9 @@ int XrdProtLoad::Process(XrdLink *lp)
 //
    TRACE(DEBUG, "matched port " <<myPort <<" protocol " <<ProtName[i]);
 
-// Attach this link to the appropriate poller
+// Activate this link
 //
-   if (!XrdPoll::Attach(lp)) {lp->setEtext("attach failed"); return -1;}
+   if (!lp->Activate()) {lp->setEtext("activation failed"); return -1;}
 
 // Take a short-cut and process the initial request as a sticky request
 //
@@ -214,7 +214,7 @@ void XrdProtLoad::Recycle(XrdLink *lp, int ctime, const char *reason)
 // Document non-protocol errors
 //
    if (lp && reason)
-      XrdLog->Emsg("Protocol", lp->ID, "terminated", reason);
+      Log.Emsg("Protocol", lp->ID, "terminated", reason);
 }
 
 /******************************************************************************/
@@ -261,7 +261,7 @@ XrdProtocol *XrdProtLoad::getProtocol(const char *lname,
 //
    for (i = 0; i < libcnt; i++) if (!strcmp(xname, liblist[i])) break;
    if (i >= libcnt)
-      {XrdLog->Emsg("Protocol", pname, "was lost during loading", lname);
+      {Log.Emsg("Protocol", pname, "was lost during loading", lname);
        return 0;
       }
 
@@ -299,10 +299,10 @@ int XrdProtLoad::getProtocolPort(const char *lname,
    for (i = 0; i < libcnt; i++) if (!strcmp(xname, liblist[i])) break;
    if (i >= libcnt)
       {if (libcnt >= ProtoMax)
-          {XrdLog->Emsg("Protocol", "Too many protocols have been defined.");
+          {Log.Emsg("Protocol", "Too many protocols have been defined.");
            return -1;
           }
-       if (!(libhndl[i] = new XrdOucPinLoader(XrdLog,&myVer,"protocol",lname)))
+       if (!(libhndl[i] = new XrdOucPinLoader(&Log,&myVer,"protocol",lname)))
           return -1;
        liblist[i] = strdup(xname);
        libcnt++;

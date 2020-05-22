@@ -631,6 +631,7 @@ int XrdHttpProtocol::Process(XrdLink *lp) // We ignore the argument here
     if (nfo) {
       TRACEI(REQ, " Setting host: " << nfo);
       SecEntity.host = nfo;
+      strcpy(SecEntity.prot, "http");
     }
   }
 
@@ -687,6 +688,7 @@ int XrdHttpProtocol::Process(XrdLink *lp) // We ignore the argument here
       res = SSL_get_verify_result(ssl);
       TRACEI(DEBUG, " SSL_get_verify_result returned :" << res);
       ERR_print_errors(sslbio_err);
+      strcpy(SecEntity.prot, "https");
 
 
       // Get the voms string and auth information
@@ -699,6 +701,7 @@ int XrdHttpProtocol::Process(XrdLink *lp) // We ignore the argument here
 
       if (res != X509_V_OK) return -1;
       ssldone = true;
+      if (TRACING(TRACE_AUTH)) SecEntity.Display(eDest);
     }
 
 
@@ -1205,11 +1208,12 @@ bool haveCA = (sslcadir || sslcafile) || ((httpsmode == hsmAuto) && xrdctxVer);
           eDest.Say("Config warning: Enabling HTTPS with xrd TLS "
                     "directive overrides!");
        const XrdTlsContext::CTX_Params *cP = xrdctx->GetParams();
-       if (!sslcert)  {sslcert   = strdup(cP->cert.c_str());
-                       sslkey    = strdup(cP->pkey.c_str());
+
+       if (!sslcert)  {if (cP->cert.size()) sslcert = strdup(cP->cert.c_str());
+                       if (cP->pkey.size()) sslkey  = strdup(cP->pkey.c_str());
                       }
-       if (!sslcadir)  sslcadir  = strdup(cP->cadir.c_str());
-       if (!sslcafile) sslcafile = strdup(cP->cafile.c_str());
+       if (!sslcadir)  if (cP->cadir.size()) sslcadir  = strdup(cP->cadir.c_str());
+       if (!sslcafile) if (cP->cafile.size())sslcafile = strdup(cP->cafile.c_str());
       }
    httpsmode = hsmOn;
 
@@ -1773,6 +1777,7 @@ bool XrdHttpProtocol::InitSecurity() {
   
 bool XrdHttpProtocol::InitTLS() {
 
+   std::string eMsg;
    uint64_t opts = XrdTlsContext::servr | XrdTlsContext::logVF |
                    XrdTlsContext::artON;
 
@@ -1780,12 +1785,12 @@ bool XrdHttpProtocol::InitTLS() {
 //
    if (sslverifydepth > 255) sslverifydepth = 255;
    opts = TLS_SET_VDEPTH(opts, sslverifydepth);
-   xrdctx = new XrdTlsContext(sslcert, sslkey, sslcadir, sslcafile, opts);
+   xrdctx = new XrdTlsContext(sslcert,sslkey,sslcadir,sslcafile,opts,&eMsg);
 
 // Make sure the context was created
 //
    if (!xrdctx->isOK())
-      {XrdTls::Emsg("HTTPS_Config:", "Unable to setup TLS context!", true);
+      {eDest.Say("Config failure: ", eMsg.c_str());
        return false;
       }
 
@@ -1800,8 +1805,7 @@ bool XrdHttpProtocol::InitTLS() {
 // Set special ciphers if so specified.
 //
    if (sslcipherfilter && !xrdctx->SetContextCiphers(sslcipherfilter))
-      {XrdTls::Emsg("HTTPS_Config:","Unable to set allowable https ciphers!",
-                     true);
+      {eDest.Say("Config failure: ", "Unable to set allowable https ciphers!");
        return false;
       }
 
@@ -1843,6 +1847,7 @@ void XrdHttpProtocol::Cleanup() {
   ssl = 0;
   sbio = 0;
 
+  if (SecEntity.caps) free(SecEntity.caps);
   if (SecEntity.grps) free(SecEntity.grps);
   if (SecEntity.endorsements) free(SecEntity.endorsements);
   if (SecEntity.vorg) free(SecEntity.vorg);
@@ -2711,12 +2716,9 @@ int XrdHttpProtocol::xtrace(XrdOucStream & Config) {
     int opval;
   } tropts[] = {
     {"all", TRACE_ALL},
-    {"emsg", TRACE_EMSG},
+    {"auth", TRACE_AUTH},
     {"debug", TRACE_DEBUG},
-    {"fs", TRACE_FS},
-    {"login", TRACE_LOGIN},
     {"mem", TRACE_MEM},
-    {"stall", TRACE_STALL},
     {"redirect", TRACE_REDIR},
     {"request", TRACE_REQ},
     {"response", TRACE_RSP}

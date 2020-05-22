@@ -65,6 +65,7 @@ add_library(
   XrdTls/XrdTlsHostcheck.icc    XrdTls/XrdTlsHostcheck.hh
   XrdTls/XrdTlsNotary.cc        XrdTls/XrdTlsNotary.hh
   XrdTls/XrdTlsNotaryUtils.icc  XrdTls/XrdTlsNotaryUtils.hh
+  XrdTls/XrdTlsPeerCerts.cc     XrdTls/XrdTlsPeerCerts.hh
   XrdTls/XrdTlsSocket.cc        XrdTls/XrdTlsSocket.hh
 
   #-----------------------------------------------------------------------------
@@ -168,12 +169,12 @@ add_library(
   Xrd/XrdJob.hh
   Xrd/XrdLink.cc                Xrd/XrdLink.hh
   Xrd/XrdLinkCtl.cc             Xrd/XrdLinkCtl.hh
+                                Xrd/XrdLinkInfo.hh
   Xrd/XrdLinkXeq.cc             Xrd/XrdLinkXeq.hh
   Xrd/XrdLinkMatch.cc           Xrd/XrdLinkMatch.hh
   Xrd/XrdGlobals.cc
+  Xrd/XrdObject.icc             Xrd/XrdObject.hh
   Xrd/XrdPoll.cc                Xrd/XrdPoll.hh
-                                Xrd/XrdPollDev.hh
-                                Xrd/XrdPollDev.icc
                                 Xrd/XrdPollE.hh
                                 Xrd/XrdPollE.icc
                                 Xrd/XrdPollInfo.hh

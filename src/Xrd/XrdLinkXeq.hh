@@ -34,6 +34,7 @@
 #include <time.h>
 
 #include "Xrd/XrdLink.hh"
+#include "Xrd/XrdLinkInfo.hh"
 #include "Xrd/XrdPollInfo.hh"
 #include "Xrd/XrdProtocol.hh"
 
@@ -70,8 +71,10 @@ void          DoIt(); // Override
                          outbytes = BytesOut+BytesOutTot;
                          numstall = stallCnt + stallCntTot;
                          numtardy = tardyCnt + tardyCntTot;
-                         return InUse;
+                         return LinkInfo.InUse;
                         }
+
+XrdTlsPeerCerts *getPeerCerts();
 
 static int    getName(int &curr, char *bname, int blen, XrdLinkMatch *who=0);
 
@@ -135,6 +138,7 @@ const char   *verTLS();
               XrdLinkXeq();
              ~XrdLinkXeq() {}  // Is never deleted!
 
+XrdLinkInfo   LinkInfo;
 XrdPollInfo   PollInfo;
 
 protected:

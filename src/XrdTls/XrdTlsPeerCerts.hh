@@ -1,10 +1,10 @@
-#ifndef __XRD_POLLDEV_H__
-#define __XRD_POLLDEV_H__
+#ifndef __XRDTLSPEERCERTS_H__
+#define __XRDTLSPEERCERTS_H__
 /******************************************************************************/
 /*                                                                            */
-/*                         X r d P o l l D e v . h h                          */
+/*                    X r d T l s P e e r C e r t s . h h                     */
 /*                                                                            */
-/* (c) 2004 by the Board of Trustees of the Leland Stanford, Jr., University  */
+/* (c) 2020 by the Board of Trustees of the Leland Stanford, Jr., University  */
 /*   Produced by Andrew Hanushevsky for Stanford University under contract    */
 /*              DE-AC02-76-SFO0515 with the Department of Energy              */
 /*                                                                            */
@@ -29,36 +29,17 @@
 /* specific prior written permission of the institution or contributor.       */
 /******************************************************************************/
 
-#include <poll.h>
+#include <openssl/ssl.h>
 
-#include "Xrd/XrdPoll.hh"
-  
-class XrdPollDev : public XrdPoll
+class XrdTlsPeerCerts
 {
 public:
 
-       void Disable(XrdLink *lp, const char *etxt=0);
+X509           *cert;
+STACK_OF(X509) *chain;
 
-       int   Enable(XrdLink *lp);
+                XrdTlsPeerCerts() : cert(0), chain(0) {}
 
-       void Start(XrdSysSemaphore *syncp, int &rc);
-
-            XrdPollDev(struct pollfd *ptab, int numfd, int pfd)
-                       {PollTab = ptab; PollMax = numfd; PollDfd = pfd;}
-           ~XrdPollDev();
-
-protected:
-       void Exclude(XrdLink *lp);
-       int  Include(XrdLink *lp) {return 1;}
-
-private:
-
-void doRequests(int maxreq);
-void LogEvent(struct pollfd *pp);
-int  sendCmd(char *cmdbuff, int cmdblen);
-
-struct pollfd *PollTab;
-       int     PollDfd;
-       int     PollMax;
+               ~XrdTlsPeerCerts();
 };
 #endif

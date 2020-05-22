@@ -43,6 +43,12 @@ namespace XrdCl
 
   class Pipeline;
 
+
+  //----------------------------------------------------------------------------
+  //! Type of the recovery function to be provided by the user
+  //----------------------------------------------------------------------------
+  typedef std::function<Operation<true>*(const XRootDStatus&)>  rcvry_func;
+
   //----------------------------------------------------------------------------
   //! Wrapper for ResponseHandler, used only internally to run next operation
   //! after previous one is finished
@@ -56,16 +62,16 @@ namespace XrdCl
       //------------------------------------------------------------------------
       //! Constructor.
       //!
-      //! @param handler : the handler of our operation
-      //! @param own     : if true we have the ownership of handler (it's
-      //!                  memory), and it is our responsibility to deallocate it
+      //! @param handler  : the handler of our operation
+      //! @param recovery : the recovery procedure for our operation
       //------------------------------------------------------------------------
-      PipelineHandler( ResponseHandler *handler );
+      PipelineHandler( ResponseHandler   *handler,
+                       rcvry_func       &&recovery );
 
       //------------------------------------------------------------------------
       //! Default Constructor.
       //------------------------------------------------------------------------
-      PipelineHandler()
+      PipelineHandler( rcvry_func &&recovery ) : recovery( std::move( recovery ) )
       {
       }
 
@@ -141,6 +147,11 @@ namespace XrdCl
       //! pipeline (traveling along the pipeline)
       //------------------------------------------------------------------------
       std::function<void(const XRootDStatus&)> final;
+
+      //------------------------------------------------------------------------
+      //! The recovery routine for the respective operation
+      //------------------------------------------------------------------------
+      rcvry_func recovery;
   };
 
   //----------------------------------------------------------------------------
@@ -202,7 +213,7 @@ namespace XrdCl
       //------------------------------------------------------------------------
       virtual Operation<HasHndl>* Move() = 0;
 
-       //------------------------------------------------------------------------
+      //------------------------------------------------------------------------
       //! Move current object into newly allocated instance, and convert
       //! it into 'handled' operation.
       //!
@@ -249,7 +260,7 @@ namespace XrdCl
       //!
       //! @param err : error object
       //!
-      //! @return    : default operation status (actual status containg
+      //! @return    : default operation status (actual status containing
       //!              error information is passed to the handler)
       //------------------------------------------------------------------------
       void ForceHandler( const XRootDStatus &status )
@@ -555,14 +566,21 @@ namespace XrdCl
         return PipeImpl( *this, op );
       }
 
-    protected:
+      //------------------------------------------------------------------------
+      //! Set recovery procedure in case the operation fails
+      //------------------------------------------------------------------------
+      Derived<HasHndl> Recovery( rcvry_func recovery )
+      {
+        this->recovery = std::move( recovery );
+        return Transform<HasHndl>();
+      }
 
       //------------------------------------------------------------------------
       //! Move current object into newly allocated instance
       //!
       //! @return : the new instance
       //------------------------------------------------------------------------
-      Operation<HasHndl>* Move()
+      inline Operation<HasHndl>* Move()
       {
         Derived<HasHndl> *me = static_cast<Derived<HasHndl>*>( this );
         return new Derived<HasHndl>( std::move( *me ) );
@@ -573,12 +591,14 @@ namespace XrdCl
       //!
       //! @return Operation<true>&
       //------------------------------------------------------------------------
-      Operation<true>* ToHandled()
+      inline Operation<true>* ToHandled()
       {
-        this->handler.reset( new PipelineHandler() );
+        this->handler.reset( new PipelineHandler( std::move( this->recovery ) ) );
         Derived<HasHndl> *me = static_cast<Derived<HasHndl>*>( this );
         return new Derived<true>( std::move( *me ) );
       }
+
+    protected:
 
       //------------------------------------------------------------------------
       //! Transform into a new instance with desired state
@@ -586,7 +606,7 @@ namespace XrdCl
       //! @return : new instance in the desired state
       //------------------------------------------------------------------------
       template<bool to>
-      Derived<to> Transform()
+      inline Derived<to> Transform()
       {
         Derived<HasHndl> *me = static_cast<Derived<HasHndl>*>( this );
         return Derived<to>( std::move( *me ) );
@@ -602,7 +622,7 @@ namespace XrdCl
       inline Derived<true> StreamImpl( ResponseHandler *handler )
       {
         static_assert( !HasHndl, "Operator >> is available only for operation without handler" );
-        this->handler.reset( new PipelineHandler( handler ) );
+        this->handler.reset( new PipelineHandler( handler, std::move( this->recovery ) ) );
         return Transform<true>();
       }
 
@@ -650,7 +670,7 @@ namespace XrdCl
       Derived<true> PipeImpl( ConcreteOperation<Derived, false, HdlrFactory,
           Args...> &me, Operation<true> &op )
       {
-        me.handler.reset( new PipelineHandler() );
+        me.handler.reset( new PipelineHandler( std::move( me.recovery ) ) );
         me.AddOperation( op.Move() );
         return me.template Transform<true>();
       }
@@ -667,7 +687,7 @@ namespace XrdCl
       Derived<true> PipeImpl( ConcreteOperation<Derived, false, HdlrFactory,
           Args...> &me, Operation<false> &op )
       {
-        me.handler.reset( new PipelineHandler() );
+        me.handler.reset( new PipelineHandler( std::move( me.recovery ) ) );
         me.AddOperation( op.ToHandled() );
         return me.template Transform<true>();
       }
@@ -676,6 +696,12 @@ namespace XrdCl
       //! Operation arguments
       //------------------------------------------------------------------------
       std::tuple<Args...> args;
+
+      //------------------------------------------------------------------------
+      //! The recovery routine for this operation
+      //------------------------------------------------------------------------
+      
+      rcvry_func recovery;
     };
 }
 

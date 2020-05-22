@@ -6,6 +6,11 @@ Prerelease Notes
 ================
 
 + **New Features**
+  * **[Sec]** Add support for x509 capabilities.
+  * **[PSS]** Allow http and https for forwarding proxies.
+  * **[Server]** Allow display of SecEntity for https and xroot.
+  * **[Voms]** Allow Voms plugin to work for gsi and https.
+  * **[POSIX]** Add N2N pfn2lfn option -cachesrc to pass data source to the N2N.
   * **[Server]** Add xrootd.tlsreuse directive for session cache control.
   * **[TLS]** Implement crl/ca automatic refresh.
   * **[TLS]** Add additional options for session caching.
@@ -56,8 +61,6 @@ Prerelease Notes
   * **[Server]** Add additional fields to he SecEntity structure (breaks ABI).
 
 + **Major bug fixes**
-  * **[Server]** Correct sequencing of an async close to prevent a SEGV.
-  * **[Server]** Add missing initializer to avoid TPC SEGV on busy systems.
   * **[Proxy]** Remove offending CGI elements before passing URL.
   * **[Server]** Accommodate changes in epoll handling in CentOS 7.10 plus.
   * **[SSI]** Fix double delete due to extraneous code addition.
@@ -68,6 +71,7 @@ Prerelease Notes
   * **[Server]** Use correct mechanism to determine DNS registration.
 
 + **Miscellaneous**
+  * **[Server]** Remove Solaris polldev support (reverts to using pollpoll).
   * **[TLS]** Always configure with session cache disabled.
   * **[Protocol]** Add TLS-specific bits for anonymous get/putfile.
   * **[Server]** Allow TLS session reuse for xroots protocol.

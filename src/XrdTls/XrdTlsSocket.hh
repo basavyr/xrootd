@@ -29,6 +29,7 @@
 class  XrdNetAddrInfo;
 class  XrdSysError;
 class  XrdTlsContext;
+class  XrdTlsPeerCerts;
 struct XrdTlsSocketImpl;
 
 //----------------------------------------------------------------------------
@@ -101,19 +102,15 @@ enum HS_Mode
 //! Establish a TLS connection
 //!
 //! @param  thehost  - The expected hostname. If nil the peername is not
-//!                    validated.
-//! @param  netInfo  - Pointer to the peer connection information if DNS
-//!                    may be used to validate the hostname, subject to
-//!                    the XrdTlsContext::dnsok option. If the pointer is
-//!                    nil, DNS will not be used to validate the hostname.
+//!                    verified.
 //! @param  eWhy     - If not nil, receives the associated error message.
 //!
 //! @return TLS_AOK if the operation was successful; otherwise the appropraite
-//!                 return code indicating the problem.
+//!                 return code indicating the problem with eWhy, not nil,
+//!                 containing a description of the error.
 //------------------------------------------------------------------------
 
-  XrdTls::RC Connect(const char *thehost=0, XrdNetAddrInfo *netInfo=0,
-                     std::string *eWhy=0);
+  XrdTls::RC Connect(const char *thehost=0, std::string *eWhy=0);
 
 //------------------------------------------------------------------------
 //! Obtain context associated with this connection.
@@ -122,6 +119,19 @@ enum HS_Mode
 //------------------------------------------------------------------------
 
   XrdTlsContext *Context();
+
+//------------------------------------------------------------------------
+//! Get peer certificates associated with the socket.
+//!
+//! @param  ver      - When true, only return verified certificates.
+//!
+//! @return A pointer to the object holding the peer certificate and the
+//!         associated chain. Nill is returned if there are no certificates
+//!         of if verification did not occur but ver was true. The caller
+//!         is responsible for deleting the returned object.
+//------------------------------------------------------------------------
+
+XrdTlsPeerCerts *getCerts(bool ver=true);
 
 //------------------------------------------------------------------------
 //! Initialize this object to handle the specified TLS I/O mode for the

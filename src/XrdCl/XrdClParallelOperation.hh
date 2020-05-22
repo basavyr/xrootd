@@ -33,10 +33,32 @@
 
 namespace XrdCl
 {
-
-  class ParallelHandler: public PipelineHandler
+  
+  //----------------------------------------------------------------------------
+  // Interface for different execution policies:
+  // - all      : all operations need to succeed in order for the parallel
+  //              operation to be successful
+  // - any      : just one of the operations needs to succeed in order for
+  //              the parallel operation to be successful
+  // - some     : n (user defined) operations need to succeed in order for
+  //              the parallel operation to be successful
+  // - at least : at least n (user defined) operations need to succeed in
+  //              order for the parallel operation to be successful (the
+  //              user handler will be called only when all operations are
+  //              resolved)
+  //
+  // @param status : status returned by one of the aggregated operations
+  //
+  // @return       : true if the status should be passed to the user handler,
+  //                 false otherwise.
+  //----------------------------------------------------------------------------
+  struct PolicyExecutor
   {
+    virtual ~PolicyExecutor()
+    {
+    }
 
+    virtual bool Examine( const XrdCl::XRootDStatus &status ) = 0;
   };
 
   //----------------------------------------------------------------------------
@@ -59,7 +81,8 @@ namespace XrdCl
       template<bool from>
       ParallelOperation( ParallelOperation<from> &&obj ) :
           ConcreteOperation<ParallelOperation, HasHndl, Resp<void>>( std::move( obj ) ),
-            pipelines( std::move( obj.pipelines ) )
+          pipelines( std::move( obj.pipelines ) ),
+          policy( std::move( obj.policy ) )
       {
       }
 
@@ -101,7 +124,164 @@ namespace XrdCl
         return oss.str();
       }
 
+      //------------------------------------------------------------------------
+      //! Set policy to `All` (default)
+      //!
+      //! All operations need to succeed in order for the parallel operation to
+      //! be successful.
+      //------------------------------------------------------------------------
+      ParallelOperation<HasHndl> All()
+      {
+        policy.reset( new AllPolicy() );
+        return std::move( *this );
+      }
+
+      //------------------------------------------------------------------------
+      //! Set policy to `Any`
+      //!
+      //! Just one of the operations needs to succeed in order for the parallel
+      //! operation to be successful.
+      //------------------------------------------------------------------------
+      ParallelOperation<HasHndl> Any()
+      {
+        policy.reset( new AnyPolicy( pipelines.size() ) );
+        return std::move( *this );
+      }
+
+      //------------------------------------------------------------------------
+      // Set policy to `Some`
+      //!
+      //! n (user defined) operations need to succeed in order for the parallel
+      //! operation to be successful.
+      //------------------------------------------------------------------------
+      ParallelOperation<HasHndl> Some( size_t threshold )
+      {
+        policy.reset( new SomePolicy( pipelines.size(), threshold ) );
+        return std::move( *this );
+      }
+
+      //------------------------------------------------------------------------
+      //! Set policy to `At Least`.
+      //!
+      //! At least n (user defined) operations need to succeed in order for the
+      //! parallel operation to be successful (the user handler will be called
+      //! only when all operations are resolved).
+      //------------------------------------------------------------------------
+      ParallelOperation<HasHndl> AtLeast( size_t threshold )
+      {
+        policy.reset( new AtLeastPolicy( pipelines.size(), threshold ) );
+        return std::move( *this );
+      }
+
     private:
+
+      //------------------------------------------------------------------------
+      //! `All` policy implementation
+      //!
+      //! All operations need to succeed in order for the parallel operation to
+      //! be successful.
+      //------------------------------------------------------------------------
+      struct AllPolicy : public PolicyExecutor
+      {
+        bool Examine( const XrdCl::XRootDStatus &status )
+        {
+          if( status.IsOK() ) return false;
+          // we require all request to succeed
+          return true;
+        }
+      };
+
+      //------------------------------------------------------------------------
+      //! `Any` policy implementation
+      //!
+      //! Just one of the operations needs to succeed in order for the parallel
+      //! operation to be successful.
+      //------------------------------------------------------------------------
+      struct AnyPolicy : public PolicyExecutor
+      {
+        AnyPolicy( size_t size) : cnt( size )
+        {
+        }
+
+        bool Examine( const XrdCl::XRootDStatus &status )
+        {
+          // decrement the counter
+          size_t nb = cnt.fetch_sub( 1 );
+          // we require just one operation to be successful
+          if( status.IsOK() ) return true;
+          // lets see if this is the last one?
+          if( nb == 1 ) return true;
+          // we still have a chance there will be one that is successful
+          return false;
+        }
+
+        private:
+          std::atomic<size_t> cnt;
+      };
+
+      //------------------------------------------------------------------------
+      //! `Some` policy implementation
+      //!
+      //! n (user defined) operations need to succeed in order for the parallel
+      //! operation to be successful.
+      //------------------------------------------------------------------------
+      struct SomePolicy : PolicyExecutor
+      {
+        SomePolicy( size_t size, size_t threshold ) : cnt( size ), succeeded( 0 ), threshold( threshold )
+        {
+        }
+
+        bool Examine( const XrdCl::XRootDStatus &status )
+        {
+          // decrement the counter
+          size_t nb = cnt.fetch_sub( 1 );
+          if( status.IsOK() )
+          {
+            size_t s = succeeded.fetch_add( 1 );
+            if( s + 1 == threshold ) return true; // we reached the threshold
+            // we are not yet there
+            return false;
+          }
+          // did we dropped bellow the threshold
+          if( nb == threshold ) return true;
+          // we still have a chance there will be enough of successful operations
+          return false;
+        }
+
+        private:
+          std::atomic<size_t> cnt;
+          std::atomic<size_t> succeeded;
+          const size_t        threshold;
+      };
+
+      //------------------------------------------------------------------------
+      //! `At Least` policy implementation
+      //!
+      //! At least n (user defined) operations need to succeed in order for the
+      //! parallel operation to be successful (the user handler will be called
+      //! only when all operations are resolved).
+      //------------------------------------------------------------------------
+      struct AtLeastPolicy : PolicyExecutor
+      {
+        AtLeastPolicy( size_t size, size_t threshold ) : cnt( size ), threshold( threshold )
+        {
+        }
+
+        bool Examine( const XrdCl::XRootDStatus &status )
+        {
+          // decrement the counter
+          size_t nb = cnt.fetch_sub( 1 );
+          // although we might have the minimum to succeed we wait for the rest
+          if( status.IsOK() ) return false;
+          if( nb == threshold ) return true; // we dropped bellow the threshold
+          // we still have a chance there will be enough of successful operations
+          return false;
+        }
+
+        private:
+          std::atomic<size_t> cnt;
+          const size_t        threshold;
+      };
 
       //------------------------------------------------------------------------
       //! Helper class for handling the PipelineHandler of the
@@ -116,9 +296,9 @@ namespace XrdCl
         //!
         //! @param handler : the PipelineHandler of the Parallel operation
         //----------------------------------------------------------------------
-        Ctx( PipelineHandler *handler ): handler( handler )
+        Ctx( PipelineHandler *handler, PolicyExecutor  *policy  ): handler( handler ),
+                                                                   policy( policy )
         {
-
         }
 
         //----------------------------------------------------------------------
@@ -135,17 +315,34 @@ namespace XrdCl
         //!
         //! @param st : status
         //----------------------------------------------------------------------
-        void Handle( const XRootDStatus &st )
+        inline void Examine( const XRootDStatus &st )
         {
-          PipelineHandler* hdlr = handler.exchange( nullptr );
-          if( hdlr )
-            hdlr->HandleResponse( new XRootDStatus( st ), nullptr );
+          if( policy->Examine( st ) )
+            Handle( st );
+        }
+
+        //----------------------------------------------------------------------
+        //! Forwards the status to the PipelineHandler if the handler haven't
+        //! been called yet.
+        //!
+        //! @param st : status
+        //---------------------------------------------------------------------
+        inline void Handle( const XRootDStatus &st )
+        {
+            PipelineHandler* hdlr = handler.exchange( nullptr );
+            if( hdlr )
+              hdlr->HandleResponse( new XRootDStatus( st ), nullptr );
         }
 
         //----------------------------------------------------------------------
         //! PipelineHandler of the ParallelOperation
         //----------------------------------------------------------------------
         std::atomic<PipelineHandler*> handler;
+
+        //----------------------------------------------------------------------
+        //! Policy defining when the user handler should be called
+        //----------------------------------------------------------------------
+        std::unique_ptr<PolicyExecutor> policy;
       };
 
       //------------------------------------------------------------------------
@@ -157,13 +354,17 @@ namespace XrdCl
       //------------------------------------------------------------------------
       XRootDStatus RunImpl()
       {
-        std::shared_ptr<Ctx> ctx( new Ctx( this->handler.release() ) );
+        // make sure we have a valid policy for the parallel operation
+        if( !policy ) policy.reset( new AllPolicy() );
+
+        std::shared_ptr<Ctx> ctx =
+            std::make_shared<Ctx>( this->handler.release(), policy.release() );
 
         try
         {
           for( size_t i = 0; i < pipelines.size(); ++i )
           {
-            pipelines[i].Run( [ctx]( const XRootDStatus &st ){ if( !st.IsOK() ) ctx->Handle( st ); } );
+            pipelines[i].Run( [ctx]( const XRootDStatus &st ){ ctx->Examine( st ); } );
           }
         }
         catch( const PipelineException& ex )
@@ -178,14 +379,15 @@ namespace XrdCl
         return XRootDStatus();
       }
 
-      std::vector<Pipeline> pipelines;
+      std::vector<Pipeline>           pipelines;
+      std::unique_ptr<PolicyExecutor> policy;
   };
 
   //----------------------------------------------------------------------------
   //! Factory function for creating parallel operation from a vector
   //----------------------------------------------------------------------------
   template<class Container>
-  ParallelOperation<false> Parallel( Container &container )
+  inline ParallelOperation<false> Parallel( Container &container )
   {
     return ParallelOperation<false>( container );
   }
@@ -248,7 +450,7 @@ namespace XrdCl
   //! both r- and l-value references)
   //----------------------------------------------------------------------------
   template<typename ... Operations>
-  ParallelOperation<false> Parallel( Operations&& ... operations )
+  inline ParallelOperation<false> Parallel( Operations&& ... operations )
   {
     constexpr size_t size = sizeof...( operations );
     std::vector<Pipeline> v;
