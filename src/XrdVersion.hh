@@ -31,7 +31,7 @@
 #ifndef __XRD_VERSION_H__
 #define __XRD_VERSION_H__
 
-#define XrdVERSION  "v20200513-ae9ad761b"
+#define XrdVERSION  "v20200513-65ec7d6bd"
 
 // Numeric representation of the version tag
 // The format for the released code is: xyyzz, where: x is the major version,
@@ -47,9 +47,9 @@
 #endif
 
 // The following defines the shared library version number of any plug-in.
-// Generally, all plug-ins have a uniform version number relative to a
+// Generally, all plug-ins have a uniform version number releative to a
 // specific compilation. This version is appended to the so-name and for
-// dylibs becomes part of the actual filename (MacOS format).
+// dylibs becomes part of he actual filename (MacOS format).
 //
 #ifndef XRDPLUGIN_SOVERSION
 #define XRDPLUGIN_SOVERSION "5"
@@ -71,7 +71,7 @@ struct XrdVersionInfo {int vNum; const char vOpt; const char vPfx[3];\
 
 // Macro to define the suffix to use when generating the extern version symbol.
 // This is used by SysPlugin. We cannot use it here as cpp does not expand the
-// macro when catenating tokens together and we want to avoid yet another macro.
+// macro when catenating tokens togther and we want to avoid yet another macro.
 //
 #define XrdVERSIONINFOSFX "_"
 

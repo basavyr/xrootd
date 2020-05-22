@@ -68,11 +68,13 @@ endif()
 #-------------------------------------------------------------------------------
 add_subdirectory( src )
 add_subdirectory( bindings )
+# add_subdirectory(tests) # adds the tests by default for research purposes
 
-if( BUILD_TESTS )
-  ENABLE_TESTING()
-  add_subdirectory( tests )
-endif()
+
+# if( BUILD_TESTS )
+#   ENABLE_TESTING()
+#   add_subdirectory( tests )
+# endif()
 
 include( XRootDSummary )
 

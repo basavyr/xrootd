@@ -23,6 +23,7 @@ endif()
 
 if( ENABLE_XRDCL )
   add_subdirectory( XrdCl )
+  add_subdirectory(api_test) # adds testing capabilities for the XrdCl interface
 endif()
 
 if( XRDCLHTTP_SUBMODULE )
