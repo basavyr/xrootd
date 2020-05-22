@@ -102,7 +102,28 @@ make install -jNCORES
 ## Issues
 
 [x] - `make install` on **xrd** sources (fixed with the correct paths in the cmake install file) - see [example](./xrd-ver-backups/cmake_install.cmake) in the backup directory  
-[ ] - `make install` on **python-bindings** Issues with missing string.h header and Apple's Xcode CLANG
+[x] - `make install` on **python-bindings** Issues with missing string.h header and Apple's Xcode CLANG.
+
+   * The path in `build/bindings/python/cmake_install.cmake` needs to be fixed -> **missing proper quotes in the command name `EXECUTE_PROCESS`**.
+
+```bash
+# Is this installation the result of a crosscompile?
+if(NOT DEFINED CMAKE_CROSSCOMPILING)
+  set(CMAKE_CROSSCOMPILING "FALSE")
+endif()
+
+if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
+  EXECUTE_PROCESS(
+    COMMAND "/usr/bin/python2 /Users/basavyr/Library/Mobile Documents/com~apple~CloudDocs/Work/Pipeline/DFCTI/CERN_project/0xrootd_project/build/bindings/python/setup.py install --prefix $ENV{DESTDIR}//Users/basavyr/Library/Mobile Documents/com~apple~CloudDocs/Work/Pipeline/DFCTI/CERN_project/0xrootd_project/tarball/xrootd  --record PYTHON_INSTALLED") #correct path introduced by marking it with quotes
+endif()
+```
+
+   * The `CPATH` variable in the system must be changed to the proper XCode `C++` header files:
+
+ ```bash
+ echo $CPATH
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/usr/include/
+```
 
 Python bindings issue might be related to a recent [commit](https://github.com/xrootd/xrootd/commit/842effcd6428c3ed57f97c50fc62f470d5ade85b) on the base `xrootd`   repo.
 

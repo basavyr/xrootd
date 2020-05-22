@@ -31,7 +31,7 @@
 #ifndef __XRD_VERSION_H__
 #define __XRD_VERSION_H__
 
-#define XrdVERSION  "v20200513-65ec7d6bd"
+#define XrdVERSION  "v20200522-04b2ed764"
 
 // Numeric representation of the version tag
 // The format for the released code is: xyyzz, where: x is the major version,
